@@ -1,0 +1,2 @@
+This repository hold miscellaneous functions I code up while doing
+work that I think might be useful later on.  Currently there are two functions here, one that solves implicit functions and outputs data to plot , and another that is an example of a metropolis-hastings sampler.
