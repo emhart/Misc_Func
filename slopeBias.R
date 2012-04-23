@@ -43,14 +43,7 @@ for(i in 1:1000){
   
 }
 
-plot(output[,5]~sqrt(output[,4]))
-plot(output[,3]~sqrt(output[,4]))
-plot(output[,2]~sqrt(output[,4]))
-abline(coef(tm1)[2],0)
-
-plot(output[,1]~sqrt(output[,4]))
-abline(coef(tm1)[1],0)
-plot(output[,1:2])
+####Set up data frames for plotting
 
 yerr.output <- data.frame(yerr.output)
 xerr.output <- data.frame(xerr.output)
