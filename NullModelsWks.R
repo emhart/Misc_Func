@@ -61,14 +61,6 @@ quantile(output,c(.025,.975))
 #########A null model example from Gotelli 2000######
 # A simple null model example
 
-
-
-###Generate random matrix
-spec <- 5
-sites <- 7
-rand.mat <- rbinom(spec*sites,1,.5)
-dim(rand.mat) <- c(spec,sites)
-
 ###Function to calculate C-Score our default metric
 # See Gotelli 2000 for full description
 # or Stone and Roberts 1990
@@ -93,53 +85,131 @@ c.score <- function(sp.mat){
 #### Randomization algorithm########
 #### this randomization algorithm is based on SIM9 from Gotelli 2000
 #### In works by keeping row and column totals fixed
-#### Inputs are: nsim: the number of simulations to perform
+#### Inputs are:
 #### sp.mat:  The presence-absence species x sits matrix
+#### This is a brute force algorithm that uses a while loop
+#### it has a fail safe for the loop, but may output bad results
+### although it hasn't yet.  Also note that it can handle matrix saturation
+### up to about 40% (40% of all values are 1's), after that it begins to seriously lag
 
-sim9 <- function(nsim,sp.mat){
-  
-  #get constraints
-  r.cons <- apply(sp.mat,1,sum)
-  c.cons <- apply(sp.mat,2,sum)
-  ####Loop through and fill the initial matrix
-  outmat <- matrix(0,nrow=length(r.cons),ncol=length(c.cons))
-  for(i in 1:length(r.cons)){
-    s.ind <- sample(1:length(c.cons),r.cons[i],replace=F)
-    outmat[i,s.ind] <- 1
-     }
-  ### Now row constraints should be the same, but the column counts need to be shuffled
-  col.offset<- apply(outmat,2,sum) - c.cons
-  for(i in 1:length(col.offset)){
-      which()
-    
-  }
+sim9<-function(sp.mat){
+r.size <- dim(sp.mat)[1]
+c.size <- dim(sp.mat)[2]
+##Define output matrix
+outmat <- matrix(0,nrow=r.size,ncol=c.size)  
+#get constraints
+r.cons <- apply(sp.mat,1,sum)
+c.cons <- apply(sp.mat,2,sum)
+# create index list from constraints
+r.i <- rep(1:r.size,r.cons)
+c.i <- rep(1:c.size,c.cons)
+# Randomize our vectors
+index <- 1:length(r.i)
+r.ind <- sample(1:length(r.i),length(r.i),replace=F)
+c.ind <- sample(1:length(c.i),length(c.i),replace=F)
+# create our first loop
+nmat <- cbind(r.i[r.ind],c.i[c.ind])
+
+# figure out how many duplicates we have
+dup.i <- index[duplicated(nmat)]
+
+count <- 1
+# loop until all duplicates are removed
+while(length(dup.i > 0) || count > 100){
+
+# loop through each duplicate swapping out
+# rows and columns
+for(i in 1:length(dup.i)){
+oldval.r <- nmat[dup.i[i],1]
+oldval.c <- nmat[dup.i[i],2]
+
+new.ind.r <- sample(r.ind,1)
+new.ind.c <- sample(c.ind,1)
+
+newval.r <- nmat[new.ind.r,1]
+newval.c <- nmat[new.ind.c,2]
+
+
+nmat[new.ind.r,1] <- oldval.r
+nmat[new.ind.c,2] <- oldval.c
+
+
+nmat[dup.i[i],1]<-newval.r
+nmat[dup.i[i],2]<-newval.c
+
+}
+# recalculate number of duplicates
+dup.i <- index[duplicated(nmat)]
+# adjust failsafe counter
+count <- count + 1
+}
+# set new matrix
+outmat[nmat] <- 1
+
+return(outmat)}
+
+
+#####Just a bit of code to verify that the
+#### randomization is working
+### Uncomment to test
+#r.c <- apply(rand.mat,1,sum)
+#c.c <- apply(rand.mat,2,sum)
+#test <- sim9(rand.mat)
+#r.t <- apply(test,1,sum)
+#c.t <- apply(test,2,sum)
+#sum(c(r.c-r.t,c.c-c.t))
+
+####randomization
+
+###Generate random matrix
+spec <- 10
+sites <- 15
+rand.mat <- rbinom(spec*sites,1,.35)
+dim(rand.mat) <- c(spec,sites)
+
+# set the number of simulations
+# 5000 is a good compromise of speed and sample size
+n.sim <- 5000
+###calculate true value
+t.val <- c.score(rand.mat)
+
+prog <- txtProgressBar(min=0, max=n.sim, char="*", style=3)
+null.vec <- vector()
+for(i in 1:n.sim){
+  tmp <-try(c.score(sim9(rand.mat)),silent=T)
+  if(is.numeric(tmp)){ null.vec[i] <- tmp }
+   ###Code for a progress bar
+  setTxtProgressBar(prog, i)
   
 }
 
+hist(null.vec)
+abline(v=t.val,col=2,lwd=2)
+##Check the quantiles
+quantile(null.vec,c(.025,.975),na.rm=T)
 
+###Now use real data from Gotelli 2000, Virginia Ants
+##Get vaAnts.csv from the github file
+ants <- read.csv("vaAnts.csv")
 
+###calculate true value
+t.val <- c.score(ants)
 
+ant.vec <- vector()
 
+prog <- txtProgressBar(min=0, max=n.sim, char="*", style=3)
+null.vec <- vector()
+for(i in 1:n.sim){
+    tmp <-try(c.score(sim9(ants)),silent=T)
+   if(is.numeric(tmp)){ ant.vec[i] <- tmp }
+  ###Code for a progress bar
+  
+  setTxtProgressBar(prog, i)
+  
+}
 
+hist(ant.vec)
+abline(v=t.val,col=2,lwd=2)
+quantile(ant.vec,c(.025,.975),na.rm=T)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+###########Abundance models coming soon#########
