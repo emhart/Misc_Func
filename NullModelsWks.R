@@ -14,6 +14,9 @@
 # Simple test of difference of two means
 ####
 
+#############Note I do some plots in regular and again in ggplot, so install ggplot if you want to try it.
+#install.packages("ggplot2")
+library(ggplot2)
 ###Generate two random data sets###
 
 #set sample size
@@ -27,7 +30,7 @@ colnames(s.dat) <- c("Measure","Group")
 plot(density(s.dat[s.dat[,2]==1,1]),xlim=c(10,40))
 lines(density(s.dat[s.dat[,2]==2,1]),col=2)
 ####ggplot2 code
-ggplot(s.dat,aes(x=Measure,group=as.factor(Group),fill=as.factor(Group),alpha=.5))+geom_density()+xlim(0,15)
+ggplot(s.dat,aes(x=Measure,group=as.factor(Group),fill=as.factor(Group),alpha=.5))+geom_density()
 
 ####Parametric t.test#####
 tt1 <- t.test(x=s.dat[s.dat[,2]==2,1],y=s.dat[s.dat[,2]==1,1])
@@ -50,10 +53,10 @@ for(i in 1:nran){
 ##Find true metric
 true.val <- mean(s.dat[s.dat[,2]==1,1])-mean(s.dat[s.dat[,2]==2,1])
 ###Normal R plot
-plot(density(output),xlim=c(-6,6))
-abline(v=true.val)
+plot(density(output))
+abline(v=true.val,col=2)
 ####ggplot2###
-ggplot(as.data.frame(output),aes(x=output))+geom_density()+xlim(-6,6)+geom_vline(xintercept=true.val)
+ggplot(as.data.frame(output),aes(x=output))+geom_density()+xlim(-10,10)+geom_vline(xintercept=true.val)
 
 ###Check true value against quantiles
 quantile(output,c(.025,.975))
@@ -293,8 +296,6 @@ find.matrix.index <- function(x.coord,y.coord,max.x){
 
 sites <- round(runif(1,5,50))
 species <- round(runif(1,10,200))
-sites <- 10
-species <- 10
 
 sp.totals <- sort(r.Ni(species,.5),decreasing=T)
 ### Mimic veil line
@@ -369,6 +370,66 @@ for(i in 1:n.sim){
 hist(ants.vec,xlim=c(t.val,max(ants.vec)))
 abline(v=t.val,col=2,lwd=2)
 quantile(ants.vec,c(.025,.975),na.rm=T)
+
+
+####Another example with the fish parasites data set
+fishPar <- read.csv("fishParasites.csv")
+t.val <- U.calc(fishPar)
+n.sim <- 5000
+fish.vec<- vector()
+
+prog <- txtProgressBar(min=0, max=n.sim, char="*", style=3)
+for(i in 1:n.sim){
+  tmp <-try(U.calc(IT(fishPar)),silent=T)
+  if(is.numeric(tmp)){ fish.vec[i] <- tmp }
+  ###Code for a progress bar
+  setTxtProgressBar(prog, i)
+}
+
+hist(fish.vec,xlim=c(t.val,max(fish.vec)))
+abline(v=t.val,col=2,lwd=2)
+quantile(ants.vec,c(.025,.975),na.rm=T)
+
+
+####Integration example###########
+x <- seq(-4,4,length=1000) 
+y <- dnorm(x,0,1)
+plot(x,y,type='l',ylim=c(0,.5))
+###Set the lower limits of interest
+ll <- -1
+ul <- 1
+######Hit and miss MC integration#####
+###First pick domain
+x.dom <- seq(-4,4,length=1000)
+y.dom <- seq(0,.5,length=1000)
+prog <- txtProgressBar(min=0, max=n.sim, char="*", style=3)
+n.sim <- 10000
+x.r <- y.r <- vector()
+under.curve <- rep(0,n.sim)
+for(i in 1:n.sim){
+  ###Draw random x and y
+  x.r[i] <- sample(x.dom,1)
+  y.r[i] <- sample(y.dom,1)
+  if(y.r[i] < dnorm(x.r[i],0,1)){
+    ###Set further constraints on the x axis
+    if(x.r[i] >= ll && x.r[i] <= ul){under.curve[i]<-1}}
+  setTxtProgressBar(prog, i)
+  
+}
+
+plot(-100,-100,ylim=range(y.dom),xlim=range(x.dom),col=2,lwd=2)
+points(x.r,y.r,col=under.curve+1,pch=19)
+lines(x,y,col=2,lwd=4)
+
+f.h <- sum(under.curve)/n.sim
+V.samp <- diff(range(x.dom))*diff(range(y.dom))
+area <- f.h*V.samp
+
+
+
+
+
+
 
 
 
