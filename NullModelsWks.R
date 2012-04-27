@@ -5,6 +5,9 @@
 # null models and Monte Carlo methods.
 # Includes plotting methods from standard R libraries
 # and ggplot2 libraries
+# requires two data files
+# available at https://github.com/emhart/Misc_Func
+# they are vaAnts.csv or aussieAnts.csv
 #####################################################
 
 ###Example 1
@@ -55,6 +58,58 @@ ggplot(as.data.frame(output),aes(x=output))+geom_density()+xlim(-6,6)+geom_vline
 ###Check true value against quantiles
 quantile(output,c(.025,.975))
 
+
+
+######### Boot strap linear regression to accont for non-independence
+######### Here we test for signifigance of the slope
+###Simulate regression data
+
+x <- rnorm(80,10,3)
+###You can adjust the parameter in the term below
+### rnorm(80,0,4.5), increase the sd to change the effect
+### of sample size.  As noise decreases, the importance of sample
+### size also decreases
+y <- cbind(rep(1,80),x)%*%c(.1,.6) + rnorm(80,0,4.5)
+### the number of independent sites is 20
+### now randomly sort them into groups
+g.index <- vector()
+for(i in 1:4){
+  g.index <- c(g.index,sample(1:20,round(runif(1,10,20)),replace=F))
+}
+x <- x[1:length(g.index)]
+y <- y[1:length(g.index)]
+plot(x,y)
+###Now check the full model without the bootstrap
+summary(lm(y~x))
+index<- 1:length(g.index)
+###Create matrix to hold data
+outmat <- matrix(0,ncol=2,nrow=n.sim)
+###Code for progress bar
+prog <- txtProgressBar(min=0, max=n.sim, char="*", style=3)
+
+for(i in 1:n.sim){
+    #define new resampled index
+    rsamp.i <- vector()
+    ##Loop through and randomly sample 1 instance from each site
+    for(k in 1:length(unique(g.index))){
+      ###Control for behavior of the sample function
+      if(sum(g.index==k)>1){rsamp.i<- c(rsamp.i,sample(which(g.index==k),1))}
+      if(sum(g.index==k)==1){rsamp.i <- c(rsamp.i,which(g.index==k))}
+      
+    }
+    setTxtProgressBar(prog, i)
+  t.mod <- lm(y[rsamp.i]~x[rsamp.i])
+  outmat[i,] <- coef(t.mod)
+    
+}
+hist(outmat[,2])
+quantile(outmat[,2],c(.025,.975))
+
+###Plot the full slope and then the boot strap slope in red
+
+plot(x,y)
+abline(lm(y~x))
+abline(apply(outmat,2,mean),col=2)
 
 
 
@@ -203,7 +258,6 @@ for(i in 1:n.sim){
     tmp <-try(c.score(sim9(ants)),silent=T)
    if(is.numeric(tmp)){ ant.vec[i] <- tmp }
   ###Code for a progress bar
-  
   setTxtProgressBar(prog, i)
   
 }
@@ -212,4 +266,109 @@ hist(ant.vec)
 abline(v=t.val,col=2,lwd=2)
 quantile(ant.vec,c(.025,.975),na.rm=T)
 
-###########Abundance models coming soon#########
+########### Abundance null models ########
+### First select a metric ####
+### In this case we use U ####
+
+U.calc <- function(sp.mat){
+  V <- var(apply(sp.mat,1,sum))
+  W <- sum(apply(sp.mat,2,var))
+  return(V/W)
+}
+
+###Function to draw from the log normal
+r.Ni <- function(n,a){
+  return(exp((rnorm(n)/(2*a))))
+}
+
+### Converts a matrix to a vector ###
+
+find.matrix.index <- function(x.coord,y.coord,max.x){
+  return.index <- vector()
+  return.index <- ((y.coord -1)*max.x) + x.coord
+  return(return.index)
+}
+
+###generate random matrix following Gotelli and Ulrich 2010
+
+sites <- round(runif(1,5,50))
+species <- round(runif(1,10,200))
+sites <- 10
+species <- 10
+
+sp.totals <- sort(r.Ni(species,.5),decreasing=T)
+### Mimic veil line
+Smax <- sample((species/2):species,1)
+sp.totals <- sp.totals[1:Smax]
+
+rand.mat <- matrix(0,ncol=sites,nrow=Smax)
+ccA <- runif(sites,0,1)
+for(i in 1:Smax){
+rand.mat[i,] <- t(rmultinom(1,exp(sp.totals[i]),prob=ccA))
+}
+
+
+
+####Randomization IT, randomization 5 from Gotelli and Ulrich 2010
+
+IT <- function(sp.mat){
+  #get the total number of individuals
+  i.t <- sum(sp.mat)
+  ###calculate marginal probabilities for r and c
+  r.p <- apply(sp.mat,1,sum)/i.t
+  c.p <-  apply(sp.mat,2,sum)/i.t
+  
+  ####draw rows and colums
+  new.row <- sample(1:length(r.p),i.t,replace=T,prob=r.p)
+  new.col <- sample(1:length(c.p),i.t,replace=T,prob=c.p)
+  ###Get vector positions for each now 
+  vec.pos <- find.matrix.index(new.col,new.row,length(c.p))
+  ###now sum all the counts
+  my.counts <- table(vec.pos)
+  #expand the count vector back into the right size for the matrix
+  outmat <- rep(0,prod(dim(sp.mat)))
+  outmat[as.numeric(names(my.counts))] <- my.counts
+  dim(outmat) <- c(dim(sp.mat)[2],dim(sp.mat)[1])
+  
+   return(t(outmat))
+}
+
+
+t.val <- U.calc(rand.mat)
+n.sim <- 5000
+abun.rand<- vector()
+
+prog <- txtProgressBar(min=0, max=n.sim, char="*", style=3)
+null.vec <- vector()
+for(i in 1:n.sim){
+  tmp <-try(U.calc(IT(rand.mat)),silent=T)
+  if(is.numeric(tmp)){ abun.rand[i] <- tmp }
+  ###Code for a progress bar
+  setTxtProgressBar(prog, i)
+  }
+
+hist(abun.rand)
+abline(v=t.val,col=2,lwd=2)
+quantile(abun.rand,c(.025,.975),na.rm=T)
+
+#########Now using real data from 
+## Gotelli and Ulrich ecological archives
+ausAnts <- read.csv("aussieAnts.csv")
+t.val <- U.calc(ausAnts)
+n.sim <- 5000
+ants.vec<- vector()
+
+prog <- txtProgressBar(min=0, max=n.sim, char="*", style=3)
+for(i in 1:n.sim){
+  tmp <-try(U.calc(IT(ausAnts)),silent=T)
+  if(is.numeric(tmp)){ ants.vec[i] <- tmp }
+  ###Code for a progress bar
+  setTxtProgressBar(prog, i)
+}
+
+hist(ants.vec,xlim=c(t.val,max(ants.vec)))
+abline(v=t.val,col=2,lwd=2)
+quantile(ants.vec,c(.025,.975),na.rm=T)
+
+
+
