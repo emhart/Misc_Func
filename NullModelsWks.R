@@ -53,7 +53,7 @@ for(i in 1:nran){
 ##Find true metric
 true.val <- mean(s.dat[s.dat[,2]==1,1])-mean(s.dat[s.dat[,2]==2,1])
 ###Normal R plot
-plot(density(output))
+plot(density(output),xlim=c(-10,10))
 abline(v=true.val,col=2)
 ####ggplot2###
 ggplot(as.data.frame(output),aes(x=output))+geom_density()+xlim(-10,10)+geom_vline(xintercept=true.val)
